@@ -59,7 +59,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 def setup_middleware(app: FastAPI):
-    # Setup CORS middleware
+    # Request ID / tracing middleware
+    app.add_middleware(RequestContextMiddleware)
+    
+    # Rate Limit hook middleware
+    app.add_middleware(RateLimitMiddleware)
+
+    # Setup CORS middleware LAST so it wraps outermost to handle OPTIONS preflights first
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -67,15 +73,10 @@ def setup_middleware(app: FastAPI):
             "http://localhost:3000",
             "http://127.0.0.1:5173",
             "http://127.0.0.1:3000",
+            "https://ai-powered-study-notes-rag-api.vercel.app/",
         ],
-        allow_origin_regex=r"https?://.*",
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
-    # Request ID / tracing middleware
-    app.add_middleware(RequestContextMiddleware)
-    
-    # Rate Limit hook middleware
-    app.add_middleware(RateLimitMiddleware)
