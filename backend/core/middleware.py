@@ -7,6 +7,9 @@ from backend.core.logging import logger
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Generate or retrieve correlation ID
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         
@@ -53,9 +56,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     In production, this would interface with Redis or database counts.
     """
     async def dispatch(self, request: Request, call_next):
-        # Placeholder for rate limiting logic
-        # You would extract client IP or JWT user ID, check rate limits in Redis
-        # If rate limit exceeded, raise AppException("Rate limit exceeded", status_code=429)
+        if request.method == "OPTIONS":
+            return await call_next(request)
         return await call_next(request)
 
 def setup_middleware(app: FastAPI):
@@ -68,14 +70,7 @@ def setup_middleware(app: FastAPI):
     # Setup CORS middleware LAST so it wraps outermost to handle OPTIONS preflights first
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000",
-            "https://ai-powered-study-notes-rag-api.vercel.app/",
-        ],
-        allow_origin_regex=r"https://.*\.vercel\.app",
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
