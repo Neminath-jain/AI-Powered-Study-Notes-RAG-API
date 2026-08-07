@@ -2,7 +2,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from sentence_transformers import SentenceTransformer
+from backend.services.embeddings.client import embedding_service
 from backend.core.config import settings
 from backend.core.logging import logger
 
@@ -19,9 +19,8 @@ class QdrantService:
         if hasattr(self, "client"):
             return
             
-        logger.info("Initializing Qdrant client and SentenceTransformer model...")
+        logger.info("Initializing Qdrant client...")
         self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-        self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
         self.collection_name = settings.QDRANT_COLLECTION_NAME
         self._ensure_collection_exists()
 
@@ -40,9 +39,8 @@ class QdrantService:
             logger.error("Failed to connect or create Qdrant collection", error=str(e))
 
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generates embedding vectors for a list of text strings."""
-        embeddings = self.model.encode(texts, show_progress_bar=False)
-        return [e.tolist() for e in embeddings]
+        """Generates embedding vectors for a list of text strings using lazy embedding service."""
+        return embedding_service.embed_texts(texts)
 
     async def upsert_chunks(self, note_id: uuid.UUID, user_id: uuid.UUID, chunks: List[Dict[str, Any]]):
         """Vectorizes and upserts note text chunks into Qdrant."""
