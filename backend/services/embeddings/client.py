@@ -19,22 +19,28 @@ class EmbeddingService:
 
     def __init__(self):
         # Prevent re-initialization
-        if hasattr(self, "model"):
+        if hasattr(self, "cache"):
             return
             
         with self._lock:
-            if hasattr(self, "model"):
+            if hasattr(self, "cache"):
                 return
             
-            logger.info("Initializing Embedding Model Singleton...")
-            # Detect hardware acceleration device
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Targeting device for embedding: {self.device}")
-            
-            self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
+            self.model = None
+            self.device = None
             # In-memory dictionary cache to prevent redundant embedding calculations
             self.cache = {}
             self.cache_lock = threading.Lock()
+
+    def _get_model(self):
+        if self.model is None:
+            with self._lock:
+                if self.model is None:
+                    logger.info("Initializing Embedding Model Singleton (Lazy Load)...")
+                    self.device = "cuda" if torch.cuda.is_available() else "cpu"
+                    logger.info(f"Targeting device for embedding: {self.device}")
+                    self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
+        return self.model
 
     def _hash_text(self, text: str) -> str:
         """Computes SHA-256 hash of text to be used as cache key."""
@@ -66,7 +72,8 @@ class EmbeddingService:
         if missing_texts:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
-                embeddings = self.model.encode(
+                model = self._get_model()
+                embeddings = model.encode(
                     missing_texts, 
                     batch_size=32, 
                     show_progress_bar=False
