@@ -66,13 +66,18 @@ class SupabaseStorageService(StorageService):
     async def upload_file(self, file_content: bytes, filename: str) -> str:
         # URL shape: /storage/v1/object/bucket/filename
         url = f"{self.supabase_url}/storage/v1/object/{self.bucket}/{filename}"
+        headers = {
+            **self.headers,
+            "x-upsert": "true",
+            "Content-Type": "application/pdf" if filename.endswith(".pdf") else "application/octet-stream",
+        }
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                headers=self.headers,
+                headers=headers,
                 content=file_content,
             )
-            if response.status_code != 200:
+            if response.status_code not in (200, 201):
                 raise ExternalServiceException(
                     f"Supabase upload failed: {response.text}"
                 )

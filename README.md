@@ -228,3 +228,6 @@ npm run dev
 - **Zero-Hallucination Enforcement**: Strict context grounding with `temperature=0.0`.
 - **Async Non-Blocking I/O**: Asynchronous database and HTTP calls prevent event loop blocking.
 - **XSS-Safe Markdown Rendering**: Custom HTML escaping prevents XSS injection via uploaded notes or chat inputs.
+## py -3.12 -m venv venv
+# .\venv\Scripts\Activate.ps1
+

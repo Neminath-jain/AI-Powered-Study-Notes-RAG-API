@@ -9,14 +9,15 @@ from sqlalchemy.ext.asyncio import (
 from backend.core.config import settings
 from backend.core.logging import logger
 
-# Create async engine with connection pooling parameters
+# Create async engine with connection pooling parameters & automatic connection pre-ping
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
+    pool_pre_ping=True,
     pool_size=20,
     max_overflow=10,
     pool_timeout=30,
-    pool_recycle=1800,
+    pool_recycle=300,
     connect_args={
         "statement_cache_size": 0,
         "prepared_statement_cache_size": 0
