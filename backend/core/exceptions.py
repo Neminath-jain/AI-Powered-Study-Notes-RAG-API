@@ -62,10 +62,21 @@ class ExternalServiceException(AppException):
             details=details,
         )
 
+def _cors_response(request: Request, status_code: int, content: dict) -> JSONResponse:
+    response = JSONResponse(status_code=status_code, content=content)
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+    return response
+
 def register_exception_handlers(app: FastAPI):
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
-        return JSONResponse(
+        return _cors_response(
+            request,
             status_code=exc.status_code,
             content={
                 "success": False,
@@ -86,7 +97,8 @@ def register_exception_handlers(app: FastAPI):
                 "issue": error["msg"],
                 "type": error["type"],
             })
-        return JSONResponse(
+        return _cors_response(
+            request,
             status_code=422,
             content={
                 "success": False,
@@ -103,13 +115,14 @@ def register_exception_handlers(app: FastAPI):
         # We import logger here to avoid circular dependencies
         from backend.core.logging import logger
         logger.exception("Unhandled error occurred during request", error=str(exc))
-        return JSONResponse(
+        return _cors_response(
+            request,
             status_code=500,
             content={
                 "success": False,
                 "error": {
                     "code": "INTERNAL_SERVER_ERROR",
-                    "message": "An unexpected error occurred",
+                    "message": f"An unexpected error occurred: {str(exc)}",
                     "details": None,
                 },
             },
