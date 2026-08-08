@@ -231,3 +231,8 @@ npm run dev
 ## py -3.12 -m venv venv
 # .\venv\Scripts\Activate.ps1
 
+
+# From the root directory:
+.\venv\Scripts\python.exe -m uvicorn backend.main:app --port 8000 --reload
+
+
