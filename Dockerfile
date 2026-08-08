@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python package manager utilities and CPU-only PyTorch
-# This keeps the image size much smaller than default CUDA torch
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
