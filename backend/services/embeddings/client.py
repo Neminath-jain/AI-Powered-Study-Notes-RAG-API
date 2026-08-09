@@ -41,6 +41,8 @@ class EmbeddingService:
                         logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM)...")
                         self.model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
                         self.is_fastembed = True
+                        # Force dummy embedding to pre-warm ONNX C++ session and cache model weights
+                        list(self.model.embed(["warmup"]))
                     except Exception as fe_err:
                         logger.info("FastEmbed unavailable, falling back to SentenceTransformer PyTorch...", error=str(fe_err))
                         import gc
