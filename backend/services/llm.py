@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
-from groq import AsyncGroq
+import asyncio
+from groq import Groq
 from backend.core.config import settings
 from backend.core.logging import logger
 from backend.core.exceptions import ExternalServiceException
@@ -8,11 +9,37 @@ class LLMService:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
         if self.api_key:
-            self.client = AsyncGroq(api_key=self.api_key)
+            self.client = Groq(api_key=self.api_key, timeout=12.0)
         else:
             self.client = None
             logger.warning("GROQ_API_KEY is not set. The system will operate in Mock LLM mode.")
         self.model = settings.LLM_MODEL
+
+    def _sync_generate(self, messages: List[Dict[str, str]]) -> str:
+        """Executes synchronous Groq API call with strict 12s timeout and automatic model fallback."""
+        try:
+            response = self.client.chat.completions.create(
+                messages=messages,
+                model=self.model,
+                temperature=0.0,
+                max_tokens=1800,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            err_msg = str(e)
+            logger.warning(f"Primary LLM model '{self.model}' failed or timed out, invoking fast fallback model 'llama-3.1-8b-instant'", error=err_msg)
+            try:
+                fallback_client = Groq(api_key=self.api_key, timeout=8.0)
+                fallback_response = fallback_client.chat.completions.create(
+                    messages=messages,
+                    model="llama-3.1-8b-instant",
+                    temperature=0.0,
+                    max_tokens=1200,
+                )
+                return fallback_response.choices[0].message.content
+            except Exception as fallback_err:
+                logger.error("Fallback LLM model execution failed", error=str(fallback_err))
+                raise ExternalServiceException("AI study assistant limit reached. Please wait a moment before asking again.")
 
     async def generate_response(
         self, 
@@ -23,7 +50,6 @@ class LLMService:
     ) -> str:
         """Sends the question and context to Groq, strictly instructing it to not hallucinate and respect output language."""
         if not self.client:
-            # Mock mode to allow out-of-the-box running without credential blocks
             logger.info("Mock LLM answer generated.")
             return (
                 f"I have analyzed the documents context. The question is '{question}'. "
@@ -37,7 +63,6 @@ class LLMService:
         else:
             lang_instruction = "5. Language Auto-Detection: Detect the language of the student's question (e.g. Kannada, English, Hindi). Respond fluently in that EXACT SAME language (e.g. if asked in Kannada (ಕನ್ನಡ), answer in Kannada). If technical terms are used, you can provide English technical terms in parentheses alongside the native language translation."
 
-        # Enforce strict RAG answering rules & Exam Marks formatting
         system_prompt = (
             "You are an advanced academic tutor helping a student study their uploaded notes.\n"
             "Instructions:\n"
@@ -61,34 +86,11 @@ class LLMService:
 
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Inject chat history
         if history:
             for message in history:
                 messages.append({"role": message["role"], "content": message["content"]})
 
-        # Inject context + current question
         user_content = f"CONTEXT:\n---\n{context}\n---\n\nQUESTION: {question}"
         messages.append({"role": "user", "content": user_content})
 
-        try:
-            response = await self.client.chat.completions.create(
-                messages=messages,
-                model=self.model,
-                temperature=0.0,
-                max_tokens=1800,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            err_msg = str(e)
-            logger.warning(f"Primary LLM model '{self.model}' failed, invoking ultra-fast fallback model 'llama-3.1-8b-instant'", error=err_msg)
-            try:
-                fallback_response = await self.client.chat.completions.create(
-                    messages=messages,
-                    model="llama-3.1-8b-instant",
-                    temperature=0.0,
-                    max_tokens=1500,
-                )
-                return fallback_response.choices[0].message.content
-            except Exception as fallback_err:
-                logger.error("Fallback LLM model execution failed", error=str(fallback_err))
-                raise ExternalServiceException("AI study assistant limit reached. Please wait a moment before asking again.")
+        return await asyncio.to_thread(self._sync_generate, messages)
