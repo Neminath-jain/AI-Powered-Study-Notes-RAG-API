@@ -48,14 +48,17 @@ async def lifespan(app: FastAPI):
         os.makedirs(settings.LOCAL_STORAGE_DIR, exist_ok=True)
         logger.info(f"Local storage directory verified at {settings.LOCAL_STORAGE_DIR}")
 
-    # 4. Pre-warm FastEmbed ONNX model at startup so query requests respond in < 1 second
-    logger.info("Pre-warming FastEmbed ONNX embedding model...")
-    try:
-        from backend.services.embeddings.client import embedding_service
-        embedding_service._get_model()
-        logger.info("FastEmbed embedding model pre-warmed successfully.")
-    except Exception as emb_err:
-        logger.warning("Embedding model pre-warming warning", error=str(emb_err))
+    # 4. Pre-warm FastEmbed ONNX model in background task so server boots in < 1 second
+    async def _async_prewarm():
+        try:
+            from backend.services.embeddings.client import embedding_service
+            await embedding_service.embed_texts(["warmup query"])
+            logger.info("FastEmbed embedding model pre-warmed in background task.")
+        except Exception as emb_err:
+            logger.warning("Embedding model background pre-warming notice", error=str(emb_err))
+
+    import asyncio
+    asyncio.create_task(_async_prewarm())
 
     yield
 
