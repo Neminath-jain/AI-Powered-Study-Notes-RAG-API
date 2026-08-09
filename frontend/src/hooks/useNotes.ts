@@ -84,6 +84,17 @@ export const useNotes = () => {
     },
   });
 
+  // 5. Retry Note Processing
+  const retryNoteMutation = useMutation<Note, any, string>({
+    mutationFn: async (id) => {
+      const response = await api.post(`/notes/${id}/retry`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+
   return {
     notes: notesQuery.data || [],
     isLoading: notesQuery.isLoading,
@@ -92,5 +103,6 @@ export const useNotes = () => {
     isUploading: uploadNoteMutation.isPending,
     renameNote: renameNoteMutation.mutateAsync,
     deleteNote: deleteNoteMutation.mutateAsync,
+    retryNote: retryNoteMutation.mutateAsync,
   };
 };

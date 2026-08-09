@@ -64,6 +64,7 @@ async def upload_note(
 
 @router.get("/", response_model=List[NoteResponse])
 async def list_notes(
+    background_tasks: BackgroundTasks,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -71,7 +72,44 @@ async def list_notes(
 ):
     """List all active notes uploaded by the current student (paginated)."""
     note_repo = NoteRepository(db)
-    return await note_repo.get_by_user(current_user.id, skip=skip, limit=limit)
+    notes = await note_repo.get_by_user(current_user.id, skip=skip, limit=limit)
+
+    # Auto-recover stuck processing notes (e.g. if server restarted during initial upload)
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    processor = NoteProcessorService()
+
+    for note in notes:
+        if note.status == NoteStatus.PROCESSING:
+            created_at = note.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            if now - created_at > timedelta(minutes=2):
+                logger.info("Auto-restarting stuck note processing task", note_id=str(note.id))
+                background_tasks.add_task(processor.process_note, note.id)
+
+    return notes
+
+@router.post("/{note_id}/retry", response_model=NoteResponse)
+async def retry_note_processing(
+    note_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-enqueues note indexing for failed or stuck processing notes."""
+    note_repo = NoteRepository(db)
+    note = await note_repo.get_by_id(note_id)
+    if not note or note.user_id != current_user.id:
+        raise NotFoundException("Note not found")
+
+    note.status = NoteStatus.PROCESSING
+    note.error_message = None
+    saved_note = await note_repo.update(note)
+
+    processor = NoteProcessorService()
+    background_tasks.add_task(processor.process_note, saved_note.id)
+    return saved_note
 
 @router.get("/search", response_model=List[NoteResponse])
 async def search_notes(

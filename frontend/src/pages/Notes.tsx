@@ -16,15 +16,30 @@ import {
   MessageSquare,
   Sparkles,
   ArrowRight,
-  Filter
+  Filter,
+  RotateCw
 } from "lucide-react";
 
 export const Notes: React.FC = () => {
-  const { notes, isLoading, uploadNote, renameNote, deleteNote } = useNotes();
+  const { notes, isLoading, uploadNote, renameNote, deleteNote, retryNote } = useNotes();
   const { createSession } = useChat();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const handleRetryNote = async (id: string) => {
+    setRetryingId(id);
+    try {
+      await retryNote(id);
+      addToast("Re-started document indexing task.", "info");
+    } catch (err: any) {
+      addToast(err.message || "Failed to retry document indexing.", "error");
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -340,14 +355,25 @@ export const Notes: React.FC = () => {
                 </div>
 
                 {/* Card Action Button */}
-                <button
-                  onClick={() => handleStartChatWithNote(note.title)}
-                  className="w-full rounded-full bg-[#0066cc]/10 hover:bg-[#0066cc] text-[#0066cc] hover:text-white py-2.5 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-xs"
-                >
-                  <MessageSquare size={15} />
-                  <span>Start AI Study Session</span>
-                  <ArrowRight size={14} />
-                </button>
+                {note.status === "completed" ? (
+                  <button
+                    onClick={() => handleStartChatWithNote(note.title)}
+                    className="w-full rounded-full bg-[#0066cc]/10 hover:bg-[#0066cc] text-[#0066cc] hover:text-white py-2.5 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <MessageSquare size={15} />
+                    <span>Start AI Study Session</span>
+                    <ArrowRight size={14} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleRetryNote(note.id)}
+                    disabled={retryingId === note.id}
+                    className="w-full rounded-full bg-[#f5f5f7] border border-[#d2d2d7] hover:bg-[#e0e0e0] text-[#1d1d1f] py-2.5 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <RotateCw size={14} className={retryingId === note.id ? "animate-spin" : ""} />
+                    <span>{retryingId === note.id ? "Re-indexing..." : "Retry Indexing"}</span>
+                  </button>
+                )}
               </div>
             );
           })}
