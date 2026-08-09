@@ -74,28 +74,21 @@ class LLMService:
             response = await self.client.chat.completions.create(
                 messages=messages,
                 model=self.model,
-                temperature=0.0,  # 0.0 temperature enforces deterministic context-grounded outputs
-                max_tokens=2500,
+                temperature=0.0,
+                max_tokens=1800,
             )
             return response.choices[0].message.content
         except Exception as e:
             err_msg = str(e)
-            if "rate_limit_exceeded" in err_msg or "413" in err_msg or "Limit 12000" in err_msg or "TPM" in err_msg:
-                logger.warning(
-                    "Groq TPM limit reached for model %s. Retrying with fallback model 'llama-3.1-8b-instant'", 
-                    self.model
+            logger.warning(f"Primary LLM model '{self.model}' failed, invoking ultra-fast fallback model 'llama-3.1-8b-instant'", error=err_msg)
+            try:
+                fallback_response = await self.client.chat.completions.create(
+                    messages=messages,
+                    model="llama-3.1-8b-instant",
+                    temperature=0.0,
+                    max_tokens=1500,
                 )
-                try:
-                    fallback_response = await self.client.chat.completions.create(
-                        messages=messages,
-                        model="llama-3.1-8b-instant",
-                        temperature=0.0,
-                        max_tokens=1500,
-                    )
-                    return fallback_response.choices[0].message.content
-                except Exception as fallback_err:
-                    logger.error("Fallback LLM model also failed", error=str(fallback_err))
-                    raise ExternalServiceException("Groq API token limit reached (12,000 TPM). Please wait a moment before asking again.")
-            
-            logger.exception("Failed to fetch response from Groq API", error=err_msg)
-            raise ExternalServiceException(f"LLM provider error: {err_msg}")
+                return fallback_response.choices[0].message.content
+            except Exception as fallback_err:
+                logger.error("Fallback LLM model execution failed", error=str(fallback_err))
+                raise ExternalServiceException("AI study assistant limit reached. Please wait a moment before asking again.")

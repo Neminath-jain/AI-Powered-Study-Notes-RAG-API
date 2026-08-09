@@ -73,12 +73,10 @@ class RAGPipeline:
                 page=hit["page"]
             )
 
-        # 3. Retrieve note titles for citation names
+        # 3. Retrieve note titles for citation names in a single batch query
         retrieved_note_ids = list({hit["note_id"] for hit in hits})
-        note_title_lookup = {}
-        for nid in retrieved_note_ids:
-            note_obj = await self.note_repo.get_by_id(nid)
-            note_title_lookup[nid] = note_obj.title if note_obj else "Deleted Note"
+        note_objs = await self.note_repo.get_by_ids(retrieved_note_ids)
+        note_title_lookup = {n.id: n.title for n in note_objs}
 
         # Format citations
         citations = []

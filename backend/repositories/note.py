@@ -10,6 +10,14 @@ class NoteRepository(BaseRepository[Note]):
     def __init__(self, db: AsyncSession):
         super().__init__(Note, db)
 
+    async def get_by_ids(self, note_ids: List[uuid.UUID]) -> List[Note]:
+        """Fetch multiple notes by ID list in a single batch query."""
+        if not note_ids:
+            return []
+        query = select(Note).where(Note.id.in_(note_ids), Note.deleted_at.is_(None))
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
     async def get_by_user(self, user_id: uuid.UUID, skip: int = 0, limit: int = 100) -> List[Note]:
         """Fetch all active notes uploaded by a specific user, with metadata joined."""
         query = (
