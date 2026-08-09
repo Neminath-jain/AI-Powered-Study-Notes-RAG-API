@@ -38,23 +38,18 @@ class EmbeddingService:
                 if self.model is None:
                     try:
                         from fastembed import TextEmbedding
-                        logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM)...")
-                        self.model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+                        logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM, Single Thread)...")
+                        self.model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5", threads=1)
                         self.is_fastembed = True
                         # Force dummy embedding to pre-warm ONNX C++ session and cache model weights
                         list(self.model.embed(["warmup"]))
                     except Exception as fe_err:
                         logger.info("FastEmbed unavailable, falling back to SentenceTransformer PyTorch...", error=str(fe_err))
                         import gc
-                        try:
-                            torch.set_num_threads(1)
-                            torch.set_num_interop_threads(1)
-                        except Exception:
-                            pass
-                        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-                        self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
-                        self.is_fastembed = False
                         gc.collect()
+                        from sentence_transformers import SentenceTransformer
+                        self.model = SentenceTransformer("BAAI/bge-small-en-v1.5")
+                        self.is_fastembed = False
         return self.model
 
     def _hash_text(self, text: str) -> str:
@@ -63,14 +58,13 @@ class EmbeddingService:
 
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """
-        Batches texts, checks SHA-256 cache, calculates missing embeddings in a thread pool,
+        Batches texts, checks SHA-256 cache, calculates missing embeddings,
         saves results, and returns final float vector lists.
         """
         if not texts:
             return []
 
         import gc
-        import asyncio
         results = [None] * len(texts)
         missing_indices = []
         missing_texts = []
@@ -85,23 +79,20 @@ class EmbeddingService:
                     missing_indices.append(idx)
                     missing_texts.append(text)
 
-        # 2. Encode missing chunks in a background thread pool to keep event loop responsive
+        # 2. Encode missing chunks
         if missing_texts:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
-                def _encode_thread():
-                    model = self._get_model()
-                    if getattr(self, "is_fastembed", False):
-                        gen = model.embed(missing_texts)
-                        return [v.tolist() for v in gen]
-                    else:
-                        embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
-                        res = [v.tolist() for v in embeddings]
-                        del embeddings
-                        gc.collect()
-                        return res
-
-                vectors_list = await asyncio.to_thread(_encode_thread)
+                model = self._get_model()
+                if getattr(self, "is_fastembed", False):
+                    # FastEmbed outputs a generator yielding 384-dim numpy arrays
+                    gen = model.embed(missing_texts)
+                    vectors_list = [v.tolist() for v in gen]
+                else:
+                    embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
+                    vectors_list = [v.tolist() for v in embeddings]
+                    del embeddings
+                    gc.collect()
 
                 # 3. Cache new embeddings and fill results
                 with self.cache_lock:
