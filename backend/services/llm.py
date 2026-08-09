@@ -9,14 +9,14 @@ class LLMService:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
         if self.api_key:
-            self.client = Groq(api_key=self.api_key, timeout=12.0)
+            self.client = Groq(api_key=self.api_key, timeout=30.0)
         else:
             self.client = None
             logger.warning("GROQ_API_KEY is not set. The system will operate in Mock LLM mode.")
         self.model = settings.LLM_MODEL
 
     def _sync_generate(self, messages: List[Dict[str, str]]) -> str:
-        """Executes synchronous Groq API call with strict 12s timeout and automatic model fallback."""
+        """Executes synchronous Groq API call with 30s timeout and automatic model fallback."""
         try:
             response = self.client.chat.completions.create(
                 messages=messages,
@@ -27,14 +27,15 @@ class LLMService:
             return response.choices[0].message.content
         except Exception as e:
             err_msg = str(e)
-            logger.warning(f"Primary LLM model '{self.model}' failed or timed out, invoking fast fallback model 'llama-3.1-8b-instant'", error=err_msg)
+            fallback_model = "llama-3.3-70b-versatile" if self.model == "llama-3.1-8b-instant" else "llama-3.1-8b-instant"
+            logger.warning(f"Primary LLM model '{self.model}' failed or timed out, invoking fast fallback model '{fallback_model}'", error=err_msg)
             try:
-                fallback_client = Groq(api_key=self.api_key, timeout=8.0)
+                fallback_client = Groq(api_key=self.api_key, timeout=25.0)
                 fallback_response = fallback_client.chat.completions.create(
                     messages=messages,
-                    model="llama-3.1-8b-instant",
+                    model=fallback_model,
                     temperature=0.0,
-                    max_tokens=1200,
+                    max_tokens=1400,
                 )
                 return fallback_response.choices[0].message.content
             except Exception as fallback_err:

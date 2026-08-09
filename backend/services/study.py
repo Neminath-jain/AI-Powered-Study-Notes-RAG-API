@@ -198,9 +198,9 @@ class StudyService:
         if not points:
             raise NotFoundException("No note content found to generate study materials.")
 
-        # Randomly sample up to 12 chunks from the retrieved points to vary study context
-        sampled_points = random.sample(points, min(len(points), 12))
-        return "\n\n".join([p.payload.get("text", "")[:1500] for p in sampled_points])
+        # Randomly sample up to 6 chunks from the retrieved points to vary study context cleanly
+        sampled_points = random.sample(points, min(len(points), 6))
+        return "\n\n".join([p.payload.get("text", "")[:1000] for p in sampled_points])
 
     def _clean_and_parse_json(self, raw_str: str) -> Dict[str, Any]:
         import re
