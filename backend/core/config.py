@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     # Security settings
     JWT_SECRET: str = Field(default="supersecretaccesskey_change_me_in_production_1234567890")
     JWT_REFRESH_SECRET: str = Field(default="supersecretrefreshkey_change_me_in_production_1234567890")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440)  # 24 hours
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30)       # 30 days
 
     # Database settings
     DATABASE_URL: str = Field(default="postgresql+asyncpg://postgres:postgres@db:5432/student_rag")

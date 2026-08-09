@@ -30,7 +30,8 @@ export const useNotes = () => {
     },
     enabled: !!localStorage.getItem("access_token"),
     refetchInterval: (query) => {
-      // Poll notes if any note is still processing
+      // Poll notes if any note is still processing AND no fetch error occurred
+      if (query.state.status === "error") return false;
       const notes = query.state.data as Note[] | undefined;
       const isProcessing = notes?.some((n) => n.status === "processing");
       return isProcessing ? 3000 : false;
