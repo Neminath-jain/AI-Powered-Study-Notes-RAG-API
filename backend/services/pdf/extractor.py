@@ -27,19 +27,34 @@ def extract_pages(pdf_bytes: bytes, note_id: str = None) -> List[Dict[str, Any]]
             figure_urls = []
 
             # OCR Fallback for scanned/handwritten PDF pages with little or no text
-            if len(text.strip()) < 20 and hasattr(page, "images"):
+            if len(text.strip()) < 30:
                 try:
                     import pytesseract
                     from PIL import Image
                     ocr_texts = []
-                    for img in page.images:
-                        img_obj = Image.open(io.BytesIO(img.data))
-                        ocr_txt = pytesseract.image_to_string(img_obj)
-                        if ocr_txt.strip():
-                            ocr_texts.append(ocr_txt.strip())
+
+                    # Method 1: Try pdf2image for full page canvas rendering OCR
+                    try:
+                        from pdf2image import convert_from_bytes
+                        rendered_images = convert_from_bytes(pdf_bytes, first_page=page_num, last_page=page_num, dpi=150)
+                        for r_img in rendered_images:
+                            ocr_txt = pytesseract.image_to_string(r_img)
+                            if ocr_txt.strip():
+                                ocr_texts.append(ocr_txt.strip())
+                    except Exception as pdf2img_err:
+                        logger.debug("pdf2image page render skipped", page=page_num, error=str(pdf2img_err))
+
+                    # Method 2: Fallback to page.images extraction if pdf2image unavailable
+                    if not ocr_texts and hasattr(page, "images"):
+                        for img in page.images:
+                            img_obj = Image.open(io.BytesIO(img.data))
+                            ocr_txt = pytesseract.image_to_string(img_obj)
+                            if ocr_txt.strip():
+                                ocr_texts.append(ocr_txt.strip())
+
                     if ocr_texts:
                         text = "\n".join(ocr_texts)
-                        logger.info("Successfully executed OCR fallback on scanned page", page=page_num)
+                        logger.info("Successfully executed OCR fallback on scanned page", page=page_num, text_length=len(text))
                 except Exception as ocr_err:
                     logger.debug("OCR fallback skipped or pytesseract not configured", error=str(ocr_err))
 
