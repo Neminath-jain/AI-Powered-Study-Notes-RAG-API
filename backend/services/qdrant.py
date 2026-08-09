@@ -38,9 +38,9 @@ class QdrantService:
         except Exception as e:
             logger.error("Failed to connect or create Qdrant collection", error=str(e))
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generates embedding vectors for a list of text strings using lazy embedding service."""
-        return embedding_service.embed_texts(texts)
+        return await embedding_service.embed_texts(texts)
 
     async def upsert_chunks(self, note_id: uuid.UUID, user_id: uuid.UUID, chunks: List[Dict[str, Any]]):
         """Vectorizes and upserts note text chunks into Qdrant."""
@@ -48,7 +48,7 @@ class QdrantService:
             return
             
         texts = [c["text"] for c in chunks]
-        embeddings = self.generate_embeddings(texts)
+        embeddings = await self.generate_embeddings(texts)
         
         points = []
         for i, chunk in enumerate(chunks):
@@ -77,7 +77,8 @@ class QdrantService:
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Queries Qdrant for similar chunks matching the query string, scoped by user_id."""
-        query_vector = self.generate_embeddings([query])[0]
+        query_vectors = await self.generate_embeddings([query])
+        query_vector = query_vectors[0]
         
         # Build filter conditions
         must_conditions = [

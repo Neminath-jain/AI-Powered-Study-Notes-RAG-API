@@ -66,7 +66,7 @@ class NoteProcessorService:
                 for i in range(0, len(all_chunks), batch_size):
                     chunk_batch = all_chunks[i:i + batch_size]
                     chunk_texts = [c.text for c in chunk_batch]
-                    embeddings = embedding_service.embed_texts(chunk_texts)
+                    embeddings = await embedding_service.embed_texts(chunk_texts)
 
                     await vectordb_client.upsert_chunks(
                         user_id=note.user_id,

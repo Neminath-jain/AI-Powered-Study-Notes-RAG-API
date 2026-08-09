@@ -29,8 +29,8 @@ class RAGPipeline:
         Executes the full RAG pipeline:
         Query Embedding -> Similarity Search -> Threshold Guardrail -> LLM Call -> Citation Output.
         """
-        # 1. Generate query embedding
-        query_vectors = embedding_service.embed_texts([query])
+        # 1. Generate query embedding asynchronously in background thread
+        query_vectors = await embedding_service.embed_texts([query])
         if not query_vectors:
             raise ValueError("Query embedding generation failed.")
         query_vector = query_vectors[0]

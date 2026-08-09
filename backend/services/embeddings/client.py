@@ -61,15 +61,16 @@ class EmbeddingService:
         """Computes SHA-256 hash of text to be used as cache key."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """
-        Batches texts, checks SHA-256 cache, calculates missing embeddings,
+        Batches texts, checks SHA-256 cache, calculates missing embeddings in a thread pool,
         saves results, and returns final float vector lists.
         """
         if not texts:
             return []
 
         import gc
+        import asyncio
         results = [None] * len(texts)
         missing_indices = []
         missing_texts = []
@@ -84,20 +85,23 @@ class EmbeddingService:
                     missing_indices.append(idx)
                     missing_texts.append(text)
 
-        # 2. Encode missing chunks in low-memory batches
+        # 2. Encode missing chunks in a background thread pool to keep event loop responsive
         if missing_texts:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
-                model = self._get_model()
-                if getattr(self, "is_fastembed", False):
-                    # FastEmbed outputs a generator yielding 384-dim numpy arrays
-                    gen = model.embed(missing_texts)
-                    vectors_list = [v.tolist() for v in gen]
-                else:
-                    embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
-                    vectors_list = [v.tolist() for v in embeddings]
-                    del embeddings
-                    gc.collect()
+                def _encode_thread():
+                    model = self._get_model()
+                    if getattr(self, "is_fastembed", False):
+                        gen = model.embed(missing_texts)
+                        return [v.tolist() for v in gen]
+                    else:
+                        embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
+                        res = [v.tolist() for v in embeddings]
+                        del embeddings
+                        gc.collect()
+                        return res
+
+                vectors_list = await asyncio.to_thread(_encode_thread)
 
                 # 3. Cache new embeddings and fill results
                 with self.cache_lock:
