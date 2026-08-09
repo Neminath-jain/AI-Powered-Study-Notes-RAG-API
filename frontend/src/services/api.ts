@@ -3,10 +3,21 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 const getApiUrl = () => {
   const metaEnv = (import.meta as any).env;
   if (metaEnv && metaEnv.VITE_API_URL) {
-    return metaEnv.VITE_API_URL;
+    let url = String(metaEnv.VITE_API_URL).trim();
+    if (url.endsWith("/")) {
+      url = url.slice(0, -1);
+    }
+    if (!url.endsWith("/api/v1")) {
+      url = `${url}/api/v1`;
+    }
+    return url;
   }
   const hostname = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
-  return `http://${hostname}:8000/api/v1`;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `http://${hostname}:8000/api/v1`;
+  }
+  console.warn("VITE_API_URL environment variable is not set for production deployment. Defaulting to relative /api/v1 path.");
+  return "/api/v1";
 };
 
 export const API_URL = getApiUrl();

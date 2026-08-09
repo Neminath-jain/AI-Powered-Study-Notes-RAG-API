@@ -57,7 +57,7 @@ async def upload_note(
     saved_note = await note_repo.add(new_note)
 
     # 4. Trigger background processor task
-    processor = NoteProcessorService(db)
+    processor = NoteProcessorService()
     background_tasks.add_task(processor.process_note, saved_note.id)
 
     return saved_note

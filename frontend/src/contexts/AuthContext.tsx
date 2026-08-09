@@ -31,14 +31,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return;
     }
+    
+    // Safety timer to prevent being stuck infinitely on the loading spinner if network hangs
+    const safetyTimer = setTimeout(() => {
+      console.warn("Auth check timeout reached. Unblocking loading screen.");
+      setLoading(false);
+    }, 5000);
+
     try {
-      const response = await api.get("/auth/me");
+      const response = await api.get("/auth/me", { timeout: 4500 });
       setUser(response.data);
     } catch (err) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       setUser(null);
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   };
