@@ -129,7 +129,7 @@ export const Notes: React.FC = () => {
       const newSession = await createSession(`Study: ${noteTitle}`);
       navigate(`/chat/${newSession.id}`);
     } catch (err: any) {
-      addToast("Failed to start study session", "error");
+      addToast(err.response?.data?.detail || err.message || "Failed to start study session", "error");
     }
   };
 
