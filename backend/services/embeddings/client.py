@@ -1,8 +1,6 @@
 import hashlib
 import threading
 from typing import List
-import torch
-from sentence_transformers import SentenceTransformer
 from backend.core.config import settings
 from backend.core.logging import logger
 
