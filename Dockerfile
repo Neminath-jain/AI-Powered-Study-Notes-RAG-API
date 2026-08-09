@@ -24,7 +24,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download and cache FastEmbed ONNX model inside the image
-RUN python -c "from fastembed import TextEmbedding; list(TextEmbedding(model_name='BAAI/bge-small-en-v1.5', threads=1).embed(['warmup']))"
+RUN python -c "from fastembed import TextEmbedding; list(TextEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2', threads=1).embed(['warmup']))"
 
 # Copy the source code
 COPY . .

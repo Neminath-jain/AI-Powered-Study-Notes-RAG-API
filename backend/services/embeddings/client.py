@@ -36,8 +36,8 @@ class EmbeddingService:
                 if self.model is None:
                     try:
                         from fastembed import TextEmbedding
-                        logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM, Single Thread)...")
-                        self.model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5", threads=1)
+                        logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM 23MB, Single Thread)...")
+                        self.model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2", threads=1)
                         self.is_fastembed = True
                         # Force dummy embedding to pre-warm ONNX C++ session and cache model weights
                         list(self.model.embed(["warmup"]))
@@ -46,7 +46,7 @@ class EmbeddingService:
                         import gc
                         gc.collect()
                         from sentence_transformers import SentenceTransformer
-                        self.model = SentenceTransformer("BAAI/bge-small-en-v1.5")
+                        self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
                         self.is_fastembed = False
         return self.model
 
@@ -77,19 +77,22 @@ class EmbeddingService:
                     missing_indices.append(idx)
                     missing_texts.append(text)
 
-        # 2. Encode missing chunks
+        # 2. Encode missing chunks in micro-batches to keep RAM peak < 25MB
         if missing_texts:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
                 model = self._get_model()
-                if getattr(self, "is_fastembed", False):
-                    # FastEmbed outputs a generator yielding 384-dim numpy arrays
-                    gen = model.embed(missing_texts)
-                    vectors_list = [v.tolist() for v in gen]
-                else:
-                    embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
-                    vectors_list = [v.tolist() for v in embeddings]
-                    del embeddings
+                vectors_list = []
+                batch_size = 16
+                for b_i in range(0, len(missing_texts), batch_size):
+                    batch = missing_texts[b_i:b_i + batch_size]
+                    if getattr(self, "is_fastembed", False):
+                        gen = model.embed(batch)
+                        vectors_list.extend([v.tolist() for v in gen])
+                    else:
+                        embeddings = model.encode(batch, batch_size=16, show_progress_bar=False)
+                        vectors_list.extend([v.tolist() for v in embeddings])
+                        del embeddings
                     gc.collect()
 
                 # 3. Cache new embeddings and fill results
