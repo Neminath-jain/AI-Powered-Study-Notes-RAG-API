@@ -195,18 +195,25 @@ class StudyService:
             logger.error("Failed to scroll points for study context", error=str(e))
             points = []
 
-        if not points:
-            raise NotFoundException("No note content found to generate study materials.")
-
+        note_title = "Uploaded Course Materials"
         doc_header = ""
         if note_id:
             note_obj = await self.note_repo.get_by_id(note_id)
             if note_obj:
+                note_title = note_obj.title
                 doc_header = f"Target Document Title: {note_obj.title}\n\n"
 
-        # Randomly sample up to 6 chunks from the retrieved points to vary study context cleanly
-        sampled_points = random.sample(points, min(len(points), 6))
-        extracted_text = "\n\n".join([p.payload.get("text", "")[:1000] for p in sampled_points])
+        # Filter points that contain non-empty text content
+        valid_points = [p for p in points if p.payload.get("text", "").strip()]
+
+        if not valid_points or sum(len(p.payload.get("text", "").strip()) for p in valid_points) < 50:
+            raise NotFoundException(
+                f"No readable text found in '{note_title}'. If this is a scanned image PDF, please re-upload a text-searchable PDF."
+            )
+
+        # Randomly sample up to 6 chunks from valid points to vary study context cleanly
+        sampled_points = random.sample(valid_points, min(len(valid_points), 6))
+        extracted_text = "\n\n".join([p.payload.get("text", "").strip()[:1000] for p in sampled_points])
         return f"{doc_header}{extracted_text}"
 
     def _clean_and_parse_json(self, raw_str: str) -> Dict[str, Any]:
