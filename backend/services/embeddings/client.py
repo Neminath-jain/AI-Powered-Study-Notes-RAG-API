@@ -36,19 +36,23 @@ class EmbeddingService:
         if self.model is None:
             with self._lock:
                 if self.model is None:
-                    import gc
-                    # Restrict PyTorch thread allocation to minimize memory overhead on 512MB RAM containers
                     try:
-                        torch.set_num_threads(1)
-                        torch.set_num_interop_threads(1)
-                    except Exception:
-                        pass
-                    
-                    logger.info("Initializing Embedding Model Singleton (Lazy Load)...")
-                    self.device = "cuda" if torch.cuda.is_available() else "cpu"
-                    logger.info(f"Targeting device for embedding: {self.device}")
-                    self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
-                    gc.collect()
+                        from fastembed import TextEmbedding
+                        logger.info("Initializing FastEmbed ONNX Model Singleton (Ultra-Low RAM)...")
+                        self.model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+                        self.is_fastembed = True
+                    except Exception as fe_err:
+                        logger.info("FastEmbed unavailable, falling back to SentenceTransformer PyTorch...", error=str(fe_err))
+                        import gc
+                        try:
+                            torch.set_num_threads(1)
+                            torch.set_num_interop_threads(1)
+                        except Exception:
+                            pass
+                        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+                        self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
+                        self.is_fastembed = False
+                        gc.collect()
         return self.model
 
     def _hash_text(self, text: str) -> str:
@@ -83,23 +87,23 @@ class EmbeddingService:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
                 model = self._get_model()
-                embeddings = model.encode(
-                    missing_texts, 
-                    batch_size=16, 
-                    show_progress_bar=False
-                )
-                
+                if getattr(self, "is_fastembed", False):
+                    # FastEmbed outputs a generator yielding 384-dim numpy arrays
+                    gen = model.embed(missing_texts)
+                    vectors_list = [v.tolist() for v in gen]
+                else:
+                    embeddings = model.encode(missing_texts, batch_size=16, show_progress_bar=False)
+                    vectors_list = [v.tolist() for v in embeddings]
+                    del embeddings
+                    gc.collect()
+
                 # 3. Cache new embeddings and fill results
                 with self.cache_lock:
                     for i, idx in enumerate(missing_indices):
-                        vector = embeddings[i].tolist()
+                        vector = vectors_list[i]
                         text_hash = self._hash_text(missing_texts[i])
                         self.cache[text_hash] = vector
                         results[idx] = vector
-                
-                # Free temporary tensors immediately
-                del embeddings
-                gc.collect()
             except Exception as e:
                 logger.error("Failed to generate text embeddings", error=str(e))
                 raise ValueError("Embedding model execution failed") from e
