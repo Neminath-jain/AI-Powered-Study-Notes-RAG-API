@@ -61,7 +61,12 @@ class QdrantVectorDBClient:
                     field_name="note_id",
                     field_schema=PayloadSchemaType.KEYWORD,
                 )
-                logger.info("Payload indexes for user_id and note_id verified.")
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="page",
+                    field_schema=PayloadSchemaType.INTEGER,
+                )
+                logger.info("Payload indexes for user_id, note_id, and page verified.")
             except Exception as idx_err:
                 logger.info("Payload index setup info", details=str(idx_err))
 
@@ -204,6 +209,48 @@ class QdrantVectorDBClient:
         except Exception as e:
             logger.error("Similarity search failed in Qdrant", error=str(e))
             raise
+
+    async def get_chunks_by_pages(
+        self,
+        note_id: uuid.UUID,
+        pages: List[int]
+    ) -> List[Dict[str, Any]]:
+        """Retrieves chunks for specific note ID and page numbers to fill context gaps."""
+        if not pages:
+            return []
+        import asyncio
+        query_filter = Filter(
+            must=[
+                FieldCondition(key="note_id", match=MatchValue(value=str(note_id))),
+                FieldCondition(key="page", match=MatchAny(any=pages))
+            ]
+        )
+        try:
+            def _sync_scroll():
+                points, _ = self.client.scroll(
+                    collection_name=self.collection_name,
+                    scroll_filter=query_filter,
+                    limit=len(pages) * 5,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                return points
+            hits = await asyncio.to_thread(_sync_scroll)
+            results = []
+            for hit in hits:
+                results.append({
+                    "note_id": uuid.UUID(hit.payload["note_id"]),
+                    "page": hit.payload["page"],
+                    "text": hit.payload["text"],
+                    "score": 0.25,
+                    "char_start": hit.payload.get("char_start", 0),
+                    "char_end": hit.payload.get("char_end", 0),
+                    "figures": hit.payload.get("figures", []),
+                })
+            return results
+        except Exception as e:
+            logger.warning("Failed to fetch gap-filled page chunks", error=str(e))
+            return []
             
 # Expose singleton
 vectordb_client = QdrantVectorDBClient()

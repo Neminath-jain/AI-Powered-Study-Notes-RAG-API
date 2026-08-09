@@ -14,18 +14,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python package manager utilities and CPU-only PyTorch
+# Install python package manager utilities
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Copy dependencies manifest
 COPY backend/requirements.txt ./requirements.txt
 
-# Install remaining backend requirements
+# Install backend requirements
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download and cache the SentenceTransformer model inside the image
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+# Pre-download and cache FastEmbed ONNX model inside the image
+RUN python -c "from fastembed import TextEmbedding; list(TextEmbedding(model_name='BAAI/bge-small-en-v1.5', threads=1).embed(['warmup']))"
 
 # Copy the source code
 COPY . .

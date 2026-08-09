@@ -27,8 +27,8 @@ class TestRAGPipeline(unittest.TestCase):
     def test_similarity_score_threshold_guardrail(self):
         # We simulate a similarity check
         mock_hits_below_threshold = [
-            {"note_id": uuid.uuid4(), "page": 1, "text": "Some text", "score": 0.3},
-            {"note_id": uuid.uuid4(), "page": 2, "text": "Some other text", "score": 0.25}
+            {"note_id": uuid.uuid4(), "page": 1, "text": "Some text", "score": 0.12},
+            {"note_id": uuid.uuid4(), "page": 2, "text": "Some other text", "score": 0.10}
         ]
         
         # Check if any score clears the threshold

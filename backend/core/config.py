@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field(default="")
     LLM_MODEL: str = Field(default="llama-3.1-8b-instant")
     
-    # RAG Guardrails settings
-    SCORE_THRESHOLD: float = Field(default=0.45)
+    # RAG Similarity Threshold
+    SCORE_THRESHOLD: float = Field(default=0.18)
 
     # Storage settings
     STORAGE_TYPE: str = Field(default="supabase")  # Default to Supabase cloud storage for persistence

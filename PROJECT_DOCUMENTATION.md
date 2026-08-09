@@ -514,6 +514,10 @@ users
 - **Vector DB**: Qdrant Cloud or Local Docker (`docker run -p 6333:6333 qdrant/qdrant`)
 - **Relational DB**: Local SQLite (`student_rag.db`) or PostgreSQL (`5432`)
 
+### Production Deployment Options
+For step-by-step instructions on deploying to AWS (EC2 Docker Compose, AWS App Runner, or AWS ECS Fargate + RDS), refer to the detailed guide:
+👉 **[docs/AWS_DEPLOYMENT_GUIDE.md](file:///d:/Projects-For-Hustle/Student%20chatbot/docs/AWS_DEPLOYMENT_GUIDE.md)**
+
 ### Production Docker Compose (`docker-compose.yml`)
 ```yaml
 services:

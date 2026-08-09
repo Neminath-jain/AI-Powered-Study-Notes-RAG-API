@@ -7,17 +7,15 @@ from backend.core.config import settings
 class TestRAGGuardrails(unittest.TestCase):
     @patch("backend.services.rag.pipeline.embedding_service")
     @patch("backend.services.rag.pipeline.vectordb_client")
-    async def test_score_below_threshold_returns_fallback_instantly(self, mock_qdrant, mock_embed):
+    def test_score_below_threshold_returns_fallback_instantly(self, mock_qdrant, mock_embed):
         # Setup mocks
-        mock_embed.embed_texts.return_value = [[0.1] * 384]
-        # Simulate Qdrant returning hits below threshold score (0.35 < 0.45)
+        mock_embed.embed_texts = AsyncMock(return_value=[[0.1] * 384])
+        # Simulate Qdrant returning hits below threshold score (0.10 < 0.18)
         mock_qdrant.search_similar = AsyncMock(return_value=[
-            {"note_id": uuid.uuid4(), "page": 1, "text": "Weak match.", "score": 0.35}
+            {"note_id": uuid.uuid4(), "page": 1, "text": "Weak match.", "score": 0.10}
         ])
 
         db_session = AsyncMock()
-        pipeline = RAGPipeline(db_session)
-        
         user_id = uuid.uuid4()
         session_id = uuid.uuid4()
         
@@ -25,9 +23,8 @@ class TestRAGGuardrails(unittest.TestCase):
             mock_llm_inst = AsyncMock()
             mock_llm_cls.return_value = mock_llm_inst
             
-            # Execute RAG query
-            # Since this is an async function, we need to wrap the test runner in async execution,
-            # but standard unittest.TestCase runs synchronously. Let's make an async test runner inside the test.
+            pipeline = RAGPipeline(db_session)
+            
             import asyncio
             ans, citations = asyncio.run(pipeline.execute(
                 user_id=user_id,
@@ -53,17 +50,20 @@ class TestRAGGuardrails(unittest.TestCase):
         mock_embed
     ):
         # Setup mocks
-        mock_embed.embed_texts.return_value = [[0.1] * 384]
+        mock_embed.embed_texts = AsyncMock(return_value=[[0.1] * 384])
         note_id = uuid.uuid4()
         
-        # High matching score (0.85 > 0.45)
+        # High matching score (0.85 > 0.18)
         mock_qdrant.search_similar = AsyncMock(return_value=[
             {"note_id": note_id, "page": 1, "text": "Photosynthesis is the process by which plants use sunlight to synthesize nutrients.", "score": 0.85}
         ])
 
         # Mock database repos
         mock_note_repo = AsyncMock()
-        mock_note_repo.get_by_id = AsyncMock(return_value=AsyncMock(title="Biology Notes"))
+        mock_note_obj = AsyncMock()
+        mock_note_obj.id = note_id
+        mock_note_obj.title = "Biology Notes"
+        mock_note_repo.get_by_ids = AsyncMock(return_value=[mock_note_obj])
         mock_note_repo_cls.return_value = mock_note_repo
 
         mock_chat_repo = AsyncMock()
@@ -71,8 +71,6 @@ class TestRAGGuardrails(unittest.TestCase):
         mock_chat_repo_cls.return_value = mock_chat_repo
 
         db_session = AsyncMock()
-        pipeline = RAGPipeline(db_session)
-        
         user_id = uuid.uuid4()
         session_id = uuid.uuid4()
         
@@ -81,6 +79,8 @@ class TestRAGGuardrails(unittest.TestCase):
             mock_llm_inst = AsyncMock()
             mock_llm_inst.generate_response = AsyncMock(return_value="Photosynthesis converts sunlight to nutrients [Biology Notes, Page 1].")
             mock_llm_cls.return_value = mock_llm_inst
+            
+            pipeline = RAGPipeline(db_session)
             
             import asyncio
             ans, citations = asyncio.run(pipeline.execute(

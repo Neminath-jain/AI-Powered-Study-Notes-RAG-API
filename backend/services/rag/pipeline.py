@@ -35,12 +35,12 @@ class RAGPipeline:
             raise ValueError("Query embedding generation failed.")
         query_vector = query_vectors[0]
 
-        # 2. Query vector database
+        # 2. Query vector database with top_k=15 for comprehensive section coverage
         hits = await vectordb_client.search_similar(
             user_id=user_id,
             query_vector=query_vector,
             note_ids=note_ids,
-            top_k=10
+            top_k=15
         )
 
         # Log retrieval quality metrics (top score and hit count)
@@ -62,6 +62,32 @@ class RAGPipeline:
                 threshold=settings.SCORE_THRESHOLD
             )
             return fallback_answer, []
+
+        # 2b. Page Gap Filling: Check for missing intermediate pages in sequence (e.g., pages 1, 2, 4 -> fill page 3)
+        hits_by_note = {}
+        for hit in hits:
+            hits_by_note.setdefault(hit["note_id"], set()).add(hit["page"])
+
+        extra_hits = []
+        for nid, page_set in hits_by_note.items():
+            if len(page_set) >= 2:
+                min_p, max_p = min(page_set), max(page_set)
+                missing_pages = [p for p in range(min_p, max_p + 1) if p not in page_set and (max_p - min_p) <= 6]
+                if missing_pages:
+                    gap_chunks = await vectordb_client.get_chunks_by_pages(nid, missing_pages)
+                    extra_hits.extend(gap_chunks)
+
+        if extra_hits:
+            # Deduplicate extra_hits against existing hits by note_id & page & text snippet
+            existing_keys = {(h["note_id"], h["page"], h["text"][:50]) for h in hits}
+            for eh in extra_hits:
+                key = (eh["note_id"], eh["page"], eh["text"][:50])
+                if key not in existing_keys:
+                    existing_keys.add(key)
+                    hits.append(eh)
+
+        # Sort hits logically by note_id and page number
+        hits.sort(key=lambda x: (str(x["note_id"]), x["page"]))
 
         # Log full text details only at debug level
         for idx, hit in enumerate(hits):

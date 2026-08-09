@@ -2,8 +2,13 @@ services:
   - type: web
     name: student-knowledge-api
     env: python
-    buildCommand: "pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r backend/requirements.txt && alembic -c backend/alembic.ini upgrade head"
+    buildCommand: "pip install -r backend/requirements.txt && alembic -c backend/alembic.ini upgrade head"
     startCommand: "PYTHONPATH=. uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: OMP_NUM_THREADS
+        value: "1"
+

@@ -7,12 +7,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
 
-# Prevent Linux C++ OpenMP / ONNX Runtime thread pool deadlocks
+# Prevent Linux C++ OpenMP / ONNX Runtime thread pool deadlocks & glibc memory fragmentation
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["MALLOC_ARENA_MAX"] = "2"
 
 from backend.core.config import settings
 from backend.core.logging import logger, setup_logging
