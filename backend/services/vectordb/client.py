@@ -80,6 +80,7 @@ class QdrantVectorDBClient:
         if not chunks or not embeddings:
             return
 
+        import asyncio
         points = []
         for i, chunk in enumerate(chunks):
             # We generate a unique UUID for each point based on document ID and chunk index
@@ -100,30 +101,35 @@ class QdrantVectorDBClient:
                 )
             )
 
-        # Batch upsert points
+        # Batch upsert points in background thread
         batch_size = 64
-        for offset in range(0, len(points), batch_size):
-            batch = points[offset:offset + batch_size]
-            self.client.upsert(collection_name=self.collection_name, points=batch)
-        
+        def _sync_upsert():
+            for offset in range(0, len(points), batch_size):
+                batch = points[offset:offset + batch_size]
+                self.client.upsert(collection_name=self.collection_name, points=batch)
+
+        await asyncio.to_thread(_sync_upsert)
         logger.info(f"Successfully upserted {len(points)} vectors for note {note_id}")
 
     async def delete_chunks_by_note(self, note_id: uuid.UUID):
         """Deletes all point vectors associated with a specific note ID."""
         try:
-            self.client.delete(
-                collection_name=self.collection_name,
-                points_selector=FilterSelector(
-                    filter=Filter(
-                        must=[
-                            FieldCondition(
-                                key="note_id",
-                                match=MatchValue(value=str(note_id))
-                            )
-                        ]
+            import asyncio
+            def _sync_delete():
+                self.client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=FilterSelector(
+                        filter=Filter(
+                            must=[
+                                FieldCondition(
+                                    key="note_id",
+                                    match=MatchValue(value=str(note_id))
+                                )
+                            ]
+                        )
                     )
                 )
-            )
+            await asyncio.to_thread(_sync_delete)
             logger.info(f"Deleted vector points associated with note: {note_id}")
         except Exception as e:
             logger.error("Failed to delete points from Qdrant", error=str(e))
@@ -132,10 +138,13 @@ class QdrantVectorDBClient:
     async def delete_points(self, point_ids: List[str]):
         """Deletes a list of specific vector points by ID."""
         try:
-            self.client.delete(
-                collection_name=self.collection_name,
-                points_selector=point_ids
-            )
+            import asyncio
+            def _sync_delete():
+                self.client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=point_ids
+                )
+            await asyncio.to_thread(_sync_delete)
         except Exception as e:
             logger.error("Failed to delete point list from Qdrant", error=str(e))
             raise
@@ -151,7 +160,7 @@ class QdrantVectorDBClient:
         Queries Qdrant for similar chunks.
         Strict Namespace Filter: Appends user_id filter payload query constraint server-side.
         """
-        # Security Guardrail: Enforce matching user_id
+        import asyncio
         must_conditions = [
             FieldCondition(
                 key="user_id",
@@ -170,13 +179,15 @@ class QdrantVectorDBClient:
         query_filter = Filter(must=must_conditions)
 
         try:
-            hits = self.client.search(
-                collection_name=self.collection_name,
-                query_vector=query_vector,
-                query_filter=query_filter,
-                limit=top_k,
-                with_payload=True
-            )
+            def _sync_search():
+                return self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    query_filter=query_filter,
+                    limit=top_k,
+                    with_payload=True
+                )
+            hits = await asyncio.to_thread(_sync_search)
             
             results = []
             for hit in hits:
