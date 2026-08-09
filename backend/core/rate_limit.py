@@ -47,8 +47,12 @@ def rate_limit(requests_per_minute: int = 60):
     refill_rate = requests_per_minute / 60.0  # tokens per second
 
     async def dependency(request: Request):
-        # Determine client identifier: prefer user ID if authenticated, fallback to client IP
-        client_ip = request.client.host if request.client else "unknown"
+        # Determine client identifier: prefer real client IP from reverse proxy headers
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
+        else:
+            client_ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
         user_id = "anonymous"
         
         # If user is logged in, their state holds the current_user object
