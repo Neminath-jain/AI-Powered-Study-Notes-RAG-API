@@ -116,5 +116,9 @@ class EmbeddingService:
 
         return results
 
-# Expose global instance
+# Expose global instance and eagerly pre-warm model at module import time
 embedding_service = EmbeddingService()
+try:
+    embedding_service._get_model()
+except Exception as _e:
+    pass
