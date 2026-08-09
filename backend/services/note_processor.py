@@ -61,17 +61,19 @@ class NoteProcessorService:
                 if not all_chunks:
                     raise ValueError("No processable academic text found in PDF document.")
 
-                # 5. Calculate embeddings using the cache-enabled embedding client
-                chunk_texts = [c.text for c in all_chunks]
-                embeddings = embedding_service.embed_texts(chunk_texts)
+                # 5 & 6. Process chunks in sub-batches of 24 to keep memory overhead under 150MB
+                batch_size = 24
+                for i in range(0, len(all_chunks), batch_size):
+                    chunk_batch = all_chunks[i:i + batch_size]
+                    chunk_texts = [c.text for c in chunk_batch]
+                    embeddings = embedding_service.embed_texts(chunk_texts)
 
-                # 6. Upsert points to Qdrant vector database
-                await vectordb_client.upsert_chunks(
-                    user_id=note.user_id,
-                    note_id=note.id,
-                    chunks=all_chunks,
-                    embeddings=embeddings
-                )
+                    await vectordb_client.upsert_chunks(
+                        user_id=note.user_id,
+                        note_id=note.id,
+                        chunks=chunk_batch,
+                        embeddings=embeddings
+                    )
 
                 # 7. Create DocumentMetadata DB records
                 meta = DocumentMetadata(

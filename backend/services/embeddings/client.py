@@ -36,10 +36,19 @@ class EmbeddingService:
         if self.model is None:
             with self._lock:
                 if self.model is None:
+                    import gc
+                    # Restrict PyTorch thread allocation to minimize memory overhead on 512MB RAM containers
+                    try:
+                        torch.set_num_threads(1)
+                        torch.set_num_interop_threads(1)
+                    except Exception:
+                        pass
+                    
                     logger.info("Initializing Embedding Model Singleton (Lazy Load)...")
                     self.device = "cuda" if torch.cuda.is_available() else "cpu"
                     logger.info(f"Targeting device for embedding: {self.device}")
                     self.model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME, device=self.device)
+                    gc.collect()
         return self.model
 
     def _hash_text(self, text: str) -> str:
@@ -54,6 +63,7 @@ class EmbeddingService:
         if not texts:
             return []
 
+        import gc
         results = [None] * len(texts)
         missing_indices = []
         missing_texts = []
@@ -68,14 +78,14 @@ class EmbeddingService:
                     missing_indices.append(idx)
                     missing_texts.append(text)
 
-        # 2. Encode missing chunks in a single batch
+        # 2. Encode missing chunks in low-memory batches
         if missing_texts:
             logger.info(f"Embedding batch of size {len(missing_texts)} (Cache Misses)")
             try:
                 model = self._get_model()
                 embeddings = model.encode(
                     missing_texts, 
-                    batch_size=32, 
+                    batch_size=16, 
                     show_progress_bar=False
                 )
                 
@@ -86,6 +96,10 @@ class EmbeddingService:
                         text_hash = self._hash_text(missing_texts[i])
                         self.cache[text_hash] = vector
                         results[idx] = vector
+                
+                # Free temporary tensors immediately
+                del embeddings
+                gc.collect()
             except Exception as e:
                 logger.error("Failed to generate text embeddings", error=str(e))
                 raise ValueError("Embedding model execution failed") from e
