@@ -167,35 +167,50 @@ class StudyService:
         user_id: uuid.UUID,
         note_id: Optional[uuid.UUID] = None
     ) -> str:
-        # Create a random query vector to sample diverse document chunks from Qdrant
-        random_vec = [random.uniform(-1.0, 1.0) for _ in range(384)]
-        
-        hits = await vectordb_client.search_similar(
-            user_id=user_id,
-            query_vector=random_vec,
-            note_ids=[note_id] if note_id else None,
-            top_k=20
-        )
-        if not hits:
-            # Fallback to zero vector if random vector yielded no hits
-            hits = await vectordb_client.search_similar(
-                user_id=user_id,
-                query_vector=[0.0] * 384,
-                note_ids=[note_id] if note_id else None,
-                top_k=20
+        import asyncio
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+        must_conditions = [
+            FieldCondition(key="user_id", match=MatchValue(value=str(user_id)))
+        ]
+        if note_id:
+            must_conditions.append(
+                FieldCondition(key="note_id", match=MatchValue(value=str(note_id)))
             )
-        if not hits:
+
+        query_filter = Filter(must=must_conditions)
+
+        try:
+            def _sync_scroll():
+                points, _ = vectordb_client.client.scroll(
+                    collection_name=vectordb_client.collection_name,
+                    scroll_filter=query_filter,
+                    limit=30,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                return points
+            points = await asyncio.to_thread(_sync_scroll)
+        except Exception as e:
+            logger.error("Failed to scroll points for study context", error=str(e))
+            points = []
+
+        if not points:
             raise NotFoundException("No note content found to generate study materials.")
 
-        # Randomly sample up to 10 chunks from the retrieved hits to vary study context
-        sampled_hits = random.sample(hits, min(len(hits), 10))
-        return "\n\n".join([hit["text"][:1500] for hit in sampled_hits])
+        # Randomly sample up to 12 chunks from the retrieved points to vary study context
+        sampled_points = random.sample(points, min(len(points), 12))
+        return "\n\n".join([p.payload.get("text", "")[:1500] for p in sampled_points])
 
     def _clean_and_parse_json(self, raw_str: str) -> Dict[str, Any]:
+        import re
         cleaned = raw_str.strip()
-        if cleaned.startswith("```json"):
+        json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if json_match:
+            cleaned = json_match.group(0)
+        elif cleaned.startswith("```json"):
             cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
+        elif cleaned.startswith("```"):
             cleaned = cleaned[3:]
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]

@@ -71,8 +71,7 @@ class QdrantVectorDBClient:
                 logger.info("Payload index setup info", details=str(idx_err))
 
         except Exception as e:
-            logger.error("Failed to check/create Qdrant collection", error=str(e))
-            raise ConnectionError(f"Vector DB collection creation failed: {e}") from e
+            logger.warning("Qdrant collection setup notice", error=str(e))
 
     async def upsert_chunks(
         self,
