@@ -41,10 +41,10 @@ class Settings(BaseSettings):
     SCORE_THRESHOLD: float = Field(default=0.45)
 
     # Storage settings
-    STORAGE_TYPE: str = Field(default="local")  # "local" or "supabase"
+    STORAGE_TYPE: str = Field(default="supabase")  # Default to Supabase cloud storage for persistence
     LOCAL_STORAGE_DIR: str = Field(default="./storage")
-    SUPABASE_URL: Optional[str] = Field(default=None)
-    SUPABASE_KEY: Optional[str] = Field(default=None)
+    SUPABASE_URL: Optional[str] = Field(default="https://lebzjnrduhqynksqddjs.supabase.co")
+    SUPABASE_KEY: Optional[str] = Field(default="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlYnpqbnJkdWhxeW5rc3FkZGpzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjAzMzM1OSwiZXhwIjoyMTAxNjA5MzU5fQ.UgY1mbdxdfR4JXHhSrQx64So4ywYoVaXIcooJBZDXoA")
     SUPABASE_BUCKET: str = Field(default="notes")
 
     @property
