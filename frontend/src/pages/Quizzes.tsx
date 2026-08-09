@@ -39,6 +39,13 @@ export const Quizzes: React.FC = () => {
   const [summary, setSummary] = useState<ChapterSummary | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
+  // Reset active study materials when selected note scope changes
+  React.useEffect(() => {
+    setQuiz(null);
+    setFlashcardDeck(null);
+    setSummary(null);
+  }, [selectedNoteId]);
+
   const handleGenerateQuiz = async () => {
     try {
       setQuiz(null);

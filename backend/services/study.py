@@ -198,9 +198,16 @@ class StudyService:
         if not points:
             raise NotFoundException("No note content found to generate study materials.")
 
+        doc_header = ""
+        if note_id:
+            note_obj = await self.note_repo.get_by_id(note_id)
+            if note_obj:
+                doc_header = f"Target Document Title: {note_obj.title}\n\n"
+
         # Randomly sample up to 6 chunks from the retrieved points to vary study context cleanly
         sampled_points = random.sample(points, min(len(points), 6))
-        return "\n\n".join([p.payload.get("text", "")[:1000] for p in sampled_points])
+        extracted_text = "\n\n".join([p.payload.get("text", "")[:1000] for p in sampled_points])
+        return f"{doc_header}{extracted_text}"
 
     def _clean_and_parse_json(self, raw_str: str) -> Dict[str, Any]:
         import re
