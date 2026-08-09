@@ -67,3 +67,41 @@ async def health_check(db: AsyncSession = Depends(get_db)):
             }
         }
     )
+
+@router.get("/diag")
+async def rag_diagnostics(db: AsyncSession = Depends(get_db)):
+    import time
+    import uuid
+    t0 = time.time()
+    from backend.services.embeddings.client import embedding_service
+    from backend.services.vectordb.client import vectordb_client
+    from backend.services.llm import LLMService
+    from backend.repositories.note import NoteRepository
+
+    vecs = await embedding_service.embed_texts(["Explain MapReduce in simple terms."])
+    t1 = time.time()
+
+    hits = await vectordb_client.search_similar(
+        user_id=uuid.UUID("ef97b3d7-ccf6-49be-b531-dde9fe3eae50"),
+        query_vector=vecs[0],
+        top_k=10
+    )
+    t2 = time.time()
+
+    retrieved_note_ids = list({hit["note_id"] for hit in hits})
+    note_repo = NoteRepository(db)
+    notes = await note_repo.get_by_ids(retrieved_note_ids)
+    t3 = time.time()
+
+    llm = LLMService()
+    ans = await llm.generate_response(context="MapReduce processes parallel data.", question="What is MapReduce?")
+    t4 = time.time()
+
+    return {
+        "embedding_time": f"{t1 - t0:.3f}s",
+        "vectordb_time": f"{t2 - t1:.3f}s",
+        "note_db_time": f"{t3 - t2:.3f}s",
+        "llm_time": f"{t4 - t3:.3f}s",
+        "total_time": f"{t4 - t0:.3f}s",
+        "hits_count": len(hits)
+    }
