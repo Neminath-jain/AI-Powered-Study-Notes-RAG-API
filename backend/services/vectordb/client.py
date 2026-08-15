@@ -30,9 +30,13 @@ class QdrantVectorDBClient:
             return
             
         logger.info("Connecting to Qdrant Vector Database...")
-        self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
         self.collection_name = settings.QDRANT_COLLECTION_NAME
-        self.create_collection()
+        try:
+            self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+            self.create_collection()
+        except Exception as e:
+            logger.warning("Qdrant Vector DB connection deferred or unavailable", details=str(e))
+            self.client = None
 
     def create_collection(self):
         """Creates the target collection in Qdrant if it does not already exist, and ensures payload indexes exist."""
