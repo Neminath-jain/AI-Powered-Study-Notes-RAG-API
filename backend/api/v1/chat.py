@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.database import get_db
 from backend.api.v1.auth import get_current_user, get_optional_current_user
-from backend.models.models import User, ChatSession, Message
+from backend.models.models import User, UserRole, ChatSession, Message
 from backend.services.chat.session import ChatService
 from backend.services.rag.pipeline import RAGPipeline
 from backend.schemas.chat import (
@@ -59,7 +59,9 @@ async def delete_session(
 ):
     """Soft deletes a conversational session thread."""
     chat_service = ChatService(db)
-    await chat_service.delete_session(session_id, current_user.id)
+    is_admin = current_user.role == UserRole.ADMIN if hasattr(current_user, "role") else False
+    await chat_service.delete_session(session_id, current_user.id, is_admin=is_admin)
+    return None
 
 @router.get("/sessions/{session_id}/history", response_model=List[MessageResponse])
 async def get_session_history(

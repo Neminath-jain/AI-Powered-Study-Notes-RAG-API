@@ -55,11 +55,9 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as CustomAxiosRequestConfig;
     const isAuthRoute = originalRequest?.url?.includes("/auth/login") || 
-                        originalRequest?.url?.includes("/auth/register") ||
-                        originalRequest?.url?.includes("/chat/sessions/") ||
-                        originalRequest?.url?.includes("/chat/ask");
+                        originalRequest?.url?.includes("/auth/register");
 
-    // Check if error is 401, request hasn't been retried yet, and isn't a login/register/guest request
+    // Check if error is 401, request hasn't been retried yet, and isn't a login/register request
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthRoute) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refresh_token");
@@ -121,6 +119,15 @@ export function parseApiError(error: any): ParsedError {
     message = apiError.message || message;
     code = apiError.code || code;
     details = apiError.details || details;
+  } else if (error.response?.data?.detail) {
+    const detail = error.response.data.detail;
+    if (typeof detail === "string") {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+    } else if (typeof detail === "object") {
+      message = detail.message || detail.error || JSON.stringify(detail);
+    }
   } else if (error.message) {
     message = error.message;
   }

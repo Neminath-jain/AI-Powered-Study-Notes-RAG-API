@@ -115,6 +115,7 @@ def register_exception_handlers(app: FastAPI):
         # We import logger here to avoid circular dependencies
         from backend.core.logging import logger
         logger.exception("Unhandled error occurred during request", error=str(exc))
+        err_msg = str(exc) if str(exc).strip() else f"{type(exc).__name__}"
         return _cors_response(
             request,
             status_code=500,
@@ -122,7 +123,7 @@ def register_exception_handlers(app: FastAPI):
                 "success": False,
                 "error": {
                     "code": "INTERNAL_SERVER_ERROR",
-                    "message": f"An unexpected error occurred: {str(exc)}",
+                    "message": f"An unexpected error occurred: {err_msg}",
                     "details": None,
                 },
             },

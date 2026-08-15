@@ -33,14 +33,19 @@ def extract_pages(pdf_bytes: bytes, note_id: str = None) -> List[Dict[str, Any]]
                     from PIL import Image
                     ocr_texts = []
 
-                    # Method 1: Try pdf2image for full page canvas rendering OCR
+                    # Method 1: Try pdf2image with low DPI (72) & thumbnail resize to keep RAM < 30MB
                     try:
                         from pdf2image import convert_from_bytes
-                        rendered_images = convert_from_bytes(pdf_bytes, first_page=page_num, last_page=page_num, dpi=150)
+                        rendered_images = convert_from_bytes(pdf_bytes, first_page=page_num, last_page=page_num, dpi=72)
                         for r_img in rendered_images:
+                            r_img.thumbnail((1000, 1000))
                             ocr_txt = pytesseract.image_to_string(r_img)
                             if ocr_txt.strip():
                                 ocr_texts.append(ocr_txt.strip())
+                            del r_img
+                        del rendered_images
+                        import gc
+                        gc.collect()
                     except Exception as pdf2img_err:
                         logger.debug("pdf2image page render skipped", page=page_num, error=str(pdf2img_err))
 

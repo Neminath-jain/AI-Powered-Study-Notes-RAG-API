@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, status, Query
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/notes", tags=["notes"])
     "/upload", 
     response_model=NoteResponse, 
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(rate_limit(requests_per_minute=5))]  # 5 uploads per minute limit
+    dependencies=[Depends(rate_limit(requests_per_minute=10))]  # 10 uploads per minute limit
 )
 async def upload_note(
     background_tasks: BackgroundTasks,
@@ -33,7 +34,7 @@ async def upload_note(
     Accepts PDF upload, saves it to storage, creates a database Note record,
     and runs the background indexing RAG pipeline.
     """
-    if not file.filename.lower().endswith(".pdf"):
+    if not file or not file.filename or not file.filename.lower().endswith(".pdf"):
         raise ValidationException("Only PDF documents are supported.")
 
     # 1. Size verification
@@ -41,16 +42,17 @@ async def upload_note(
     if len(contents) > 25 * 1024 * 1024:  # 25 MB cap
         raise ValidationException("File size exceeds the 25MB limit.")
 
-    # 2. Upload raw file
+    # 2. Upload raw file with sanitized filename
+    safe_filename = os.path.basename(file.filename)
     storage_service = get_pdf_storage_service()
-    filename = f"{current_user.id}/{uuid.uuid4()}_{file.filename}"
+    filename = f"{current_user.id}/{uuid.uuid4()}_{safe_filename}"
     storage_path = await storage_service.upload_file(contents, filename)
 
     # 3. Create Note record
     note_repo = NoteRepository(db)
     new_note = Note(
         user_id=current_user.id,
-        title=file.filename,
+        title=safe_filename,
         storage_path=storage_path,
         status=NoteStatus.PROCESSING,
     )

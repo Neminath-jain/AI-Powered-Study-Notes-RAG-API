@@ -9,45 +9,46 @@ class LLMService:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
         if self.api_key:
-            self.client = Groq(api_key=self.api_key, timeout=30.0)
+            self.client = Groq(api_key=self.api_key, timeout=20.0, max_retries=0)
         else:
             self.client = None
             logger.warning("GROQ_API_KEY is not set. The system will operate in Mock LLM mode.")
         self.model = settings.LLM_MODEL
 
-    def _sync_generate(self, messages: List[Dict[str, str]]) -> str:
-        """Executes synchronous Groq API call with 30s timeout and automatic model fallback."""
-        try:
-            response = self.client.chat.completions.create(
-                messages=messages,
-                model=self.model,
-                temperature=0.0,
-                max_tokens=1800,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            err_msg = str(e)
-            fallback_model = "llama-3.3-70b-versatile" if self.model == "llama-3.1-8b-instant" else "llama-3.1-8b-instant"
-            logger.warning(f"Primary LLM model '{self.model}' failed or timed out, invoking fast fallback model '{fallback_model}'", error=err_msg)
+    def _sync_generate(self, messages: List[Dict[str, str]], model_override: Optional[str] = None) -> str:
+        """Executes synchronous Groq API call with fast timeout and multi-model fallback chain."""
+        target_model = model_override or self.model
+        fallback_candidates = ["llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
+        models_to_try = [target_model] + [m for m in fallback_candidates if m != target_model]
+
+        last_err = None
+        for current_model in models_to_try:
             try:
-                fallback_client = Groq(api_key=self.api_key, timeout=25.0)
-                fallback_response = fallback_client.chat.completions.create(
+                client = Groq(api_key=self.api_key, timeout=12.0, max_retries=0)
+                response = client.chat.completions.create(
                     messages=messages,
-                    model=fallback_model,
+                    model=current_model,
                     temperature=0.0,
-                    max_tokens=1400,
+                    max_tokens=1800,
                 )
-                return fallback_response.choices[0].message.content
-            except Exception as fallback_err:
-                logger.error("Fallback LLM model execution failed", error=str(fallback_err))
-                raise ExternalServiceException("AI study assistant limit reached. Please wait a moment before asking again.")
+                return response.choices[0].message.content
+            except Exception as e:
+                last_err = e
+                logger.warning(f"LLM model '{current_model}' failed or rate-limited, attempting failover", error=str(e))
+                continue
+
+        err_str = str(last_err)
+        if "429" in err_str or "rate_limit" in err_str.lower():
+            raise ExternalServiceException("Groq AI daily rate limit reached. Please wait a minute before trying again.")
+        raise ExternalServiceException("AI study assistant limit reached. Please wait a moment before asking again.")
 
     async def generate_response(
         self, 
         context: str, 
         question: str, 
         history: Optional[List[Dict[str, str]]] = None,
-        language: str = "Auto"
+        language: str = "Auto",
+        model_override: Optional[str] = None
     ) -> str:
         """Sends the question and context to Groq, strictly instructing it to not hallucinate and respect output language."""
         if not self.client:
@@ -58,11 +59,31 @@ class LLMService:
                 f"Context details: {context[:200]}..."
             )
 
+        LANG_MAP = {
+            "en": "English",
+            "english": "English",
+            "kn": "Kannada",
+            "kannada": "Kannada",
+            "hi": "Hindi",
+            "hindi": "Hindi",
+            "es": "Spanish",
+            "spanish": "Spanish",
+        }
+        target_lang = LANG_MAP.get(language.lower(), language) if language else "Auto"
+
         lang_instruction = ""
-        if language and language.lower() not in ("auto", "default"):
-            lang_instruction = f"5. Response Language: The student specifically selected {language}. You MUST generate your entire answer in {language}."
+        if target_lang and target_lang.lower() not in ("auto", "default"):
+            lang_instruction = (
+                f"5. Response Language Override: The student has specifically requested the response in {target_lang}. "
+                f"Regardless of the language of the uploaded notes or context (for example, even if the retrieved text or question is in Hindi, Kannada, or another language), "
+                f"you MUST translate all extracted concepts and generate your ENTIRE answer strictly and completely in {target_lang}."
+            )
         else:
-            lang_instruction = "5. Language Auto-Detection: Detect the language of the student's question (e.g. Kannada, English, Hindi). Respond fluently in that EXACT SAME language (e.g. if asked in Kannada (ಕನ್ನಡ), answer in Kannada). If technical terms are used, you can provide English technical terms in parentheses alongside the native language translation."
+            lang_instruction = (
+                "5. Language Auto-Detection: Detect the primary language of the student's question and uploaded notes. "
+                "Respond fluently in that same language. If technical terms are used in non-English responses, "
+                "you can provide English technical terms in parentheses alongside the native language translation."
+            )
 
         system_prompt = (
             "You are an advanced academic tutor helping a student study their uploaded notes.\n"
@@ -94,4 +115,4 @@ class LLMService:
         user_content = f"CONTEXT:\n---\n{context}\n---\n\nQUESTION: {question}"
         messages.append({"role": "user", "content": user_content})
 
-        return await asyncio.to_thread(self._sync_generate, messages)
+        return await asyncio.to_thread(self._sync_generate, messages, model_override)

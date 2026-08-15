@@ -43,7 +43,7 @@ export const useStudy = () => {
       const params = new URLSearchParams();
       if (noteId) params.append("note_id", noteId);
       params.append("num_questions", numQuestions.toString());
-      const response = await api.post(`/study/quiz/generate?${params.toString()}`);
+      const response = await api.post(`/study/quiz/generate?${params.toString()}`, null, { timeout: 120000 });
       return response.data;
     },
   });
@@ -54,7 +54,7 @@ export const useStudy = () => {
       const params = new URLSearchParams();
       if (noteId) params.append("note_id", noteId);
       params.append("num_cards", numCards.toString());
-      const response = await api.post(`/study/flashcards/generate?${params.toString()}`);
+      const response = await api.post(`/study/flashcards/generate?${params.toString()}`, null, { timeout: 120000 });
       return response.data;
     },
   });
@@ -63,7 +63,7 @@ export const useStudy = () => {
   const fetchSummary = async (noteId?: string): Promise<ChapterSummary> => {
     const params = new URLSearchParams();
     if (noteId) params.append("note_id", noteId);
-    const response = await api.get(`/study/summary?${params.toString()}`);
+    const response = await api.get(`/study/summary?${params.toString()}`, { timeout: 120000 });
     return response.data;
   };
 

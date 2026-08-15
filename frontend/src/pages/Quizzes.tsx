@@ -39,6 +39,13 @@ export const Quizzes: React.FC = () => {
   const [summary, setSummary] = useState<ChapterSummary | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
+  // Auto-select the first uploaded note if none is selected
+  React.useEffect(() => {
+    if (!selectedNoteId && notes.length > 0) {
+      setSelectedNoteId(notes[0].id);
+    }
+  }, [notes]);
+
   // Reset active study materials when selected note scope changes
   React.useEffect(() => {
     setQuiz(null);

@@ -54,6 +54,12 @@ export const Chat: React.FC = () => {
   const [query, setQuery] = useState("");
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState(settings.answerLanguage || "auto");
+
+  useEffect(() => {
+    if (settings.answerLanguage) {
+      setSelectedLanguage(settings.answerLanguage);
+    }
+  }, [settings.answerLanguage]);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
@@ -123,7 +129,7 @@ export const Chat: React.FC = () => {
           navigate("/dashboard");
         }
       } catch (err: any) {
-        addToast("Failed to delete thread.", "error");
+        addToast(err.message || "Failed to delete thread.", "error");
       }
     }
   };

@@ -28,10 +28,13 @@ class ChatService:
         session.title = new_title
         return await self.chat_repo.update(session)
 
-    async def delete_session(self, session_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    async def delete_session(self, session_id: uuid.UUID, user_id: Optional[uuid.UUID] = None, is_admin: bool = False) -> bool:
         """Soft deletes a chat session thread."""
         session = await self.chat_repo.get_by_id(session_id)
-        if not session or session.user_id != user_id:
+        if not session:
+            raise NotFoundException("Chat session not found")
+        
+        if user_id and not is_admin and session.user_id != user_id:
             raise NotFoundException("Chat session not found")
         
         return await self.chat_repo.delete(session_id)

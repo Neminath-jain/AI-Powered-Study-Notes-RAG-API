@@ -32,6 +32,7 @@ htmlcov/
 backend/data/
 backend/uploads/
 qdrant_storage/
+storage/
 
 # Node & Frontend Build Artifacts
 node_modules/

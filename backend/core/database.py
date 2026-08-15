@@ -19,8 +19,7 @@ engine = create_async_engine(
     pool_timeout=30,
     pool_recycle=300,
     connect_args={
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0
+        "statement_cache_size": 0
     },
 )
 
@@ -37,10 +36,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
         except Exception:
-            await session.rollback()
+            try:
+                await session.rollback()
+            except Exception:
+                pass
             raise
         finally:
-            await session.close()
+            try:
+                await session.close()
+            except Exception:
+                pass
 
 @asynccontextmanager
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -50,10 +55,16 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
             await session.commit()
         except Exception:
-            await session.rollback()
+            try:
+                await session.rollback()
+            except Exception:
+                pass
             raise
         finally:
-            await session.close()
+            try:
+                await session.close()
+            except Exception:
+                pass
 
 async def wait_for_db(max_retries: int = 5, delay: float = 2.0):
     """Wait for the database to become responsive before starting the app."""
