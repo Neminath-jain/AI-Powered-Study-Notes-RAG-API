@@ -114,6 +114,14 @@ export function parseApiError(error: any): ParsedError {
   let code = "INTERNAL_ERROR";
   let details = null;
 
+  if (error?.code === "ECONNABORTED" || (typeof error?.message === "string" && error.message.includes("timeout"))) {
+    return {
+      message: "The server is waking up from idle mode (Render cold start). Please wait 10-15 seconds and click Sign In again.",
+      code: "TIMEOUT",
+      details: null
+    };
+  }
+
   if (error.response?.data?.error) {
     const apiError = error.response.data.error;
     message = apiError.message || message;

@@ -57,12 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await api.post("/auth/login", { email, password });
+      const response = await api.post("/auth/login", { email, password }, { timeout: 90000 });
       const { access_token, refresh_token } = response.data;
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("refresh_token", refresh_token);
       
-      const meRes = await api.get("/auth/me");
+      const meRes = await api.get("/auth/me", { timeout: 30000 });
       setUser(meRes.data);
     } catch (err) {
       throw err;
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (email: string, password: string) => {
     try {
-      await api.post("/auth/register", { email, password });
+      await api.post("/auth/register", { email, password }, { timeout: 90000 });
       // Login automatically upon successful signup
       await login(email, password);
     } catch (err) {
