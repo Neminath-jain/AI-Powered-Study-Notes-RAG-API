@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from backend.services.embeddings.client import EmbeddingService, embedding_service
 
@@ -10,7 +11,7 @@ class TestEmbeddings(unittest.TestCase):
 
     def test_embedding_dimensions(self):
         texts = ["Verify this string."]
-        vectors = embedding_service.embed_texts(texts)
+        vectors = asyncio.run(embedding_service.embed_texts(texts))
         self.assertEqual(len(vectors), 1)
         # MiniLM-L6-v2 size is 384
         self.assertEqual(len(vectors[0]), 384)
@@ -19,30 +20,30 @@ class TestEmbeddings(unittest.TestCase):
         text = "This is a cached string text check."
         
         # Initialize first run
-        vectors_1 = embedding_service.embed_texts([text])
+        vectors_1 = asyncio.run(embedding_service.embed_texts([text]))
         
         # Check cache state
         text_hash = embedding_service._hash_text(text)
         self.assertTrue(text_hash in embedding_service.cache)
         
         # Second run should load from cache
-        # Patch encode to detect if it runs
-        original_encode = embedding_service.model.encode
+        # Patch embed to detect if it runs
+        original_embed = embedding_service.model.embed
         called = False
-        def mock_encode(*args, **kwargs):
+        def mock_embed(*args, **kwargs):
             nonlocal called
             called = True
-            return original_encode(*args, **kwargs)
+            return original_embed(*args, **kwargs)
         
-        embedding_service.model.encode = mock_encode
-        vectors_2 = embedding_service.embed_texts([text])
+        embedding_service.model.embed = mock_embed
+        vectors_2 = asyncio.run(embedding_service.embed_texts([text]))
         
-        # Verify it did not invoke model.encode because of cache hit
+        # Verify it did not invoke model.embed because of cache hit
         self.assertFalse(called)
         self.assertEqual(vectors_1, vectors_2)
         
-        # Restore model.encode
-        embedding_service.model.encode = original_encode
+        # Restore model.embed
+        embedding_service.model.embed = original_embed
 
 if __name__ == "__main__":
     unittest.main()

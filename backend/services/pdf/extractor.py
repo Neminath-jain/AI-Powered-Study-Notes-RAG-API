@@ -135,8 +135,9 @@ def clean_page_text(raw_text: str) -> str:
     # Heuristics to strip running headers, footers, page counts
     for line in lines:
         stripped = line.strip()
-        # Skip empty lines at this stage (we rebuild paragraph gaps later)
+        # Keep empty lines so paragraph breaks (\n\n) are preserved
         if not stripped:
+            cleaned_lines.append("")
             continue
         # Skip purely numeric lines (page numbers)
         if re.match(r"^\d+$", stripped):
@@ -144,8 +145,8 @@ def clean_page_text(raw_text: str) -> str:
         # Skip "Page X" or "Page X of Y" labels
         if re.match(r"^(page\s+\d+|\d+\s+of\s+\d+|page\s+\d+\s+of\s+\d+)$", stripped, re.IGNORECASE):
             continue
-        # Skip common academic headers like "running head:" or "chapter \d+" if simple
-        if re.match(r"^(running head|chapter\s+\d+|section\s+\d+(\.\d+)*)$", stripped, re.IGNORECASE):
+        # Skip common academic headers like "running head: ..." or standalone "chapter \d+"
+        if re.match(r"^(running head:.*|chapter\s+\d+:\s*.*|section\s+\d+(\.\d+)*\s*.*)$", stripped, re.IGNORECASE):
             continue
         
         cleaned_lines.append(line)
@@ -154,7 +155,7 @@ def clean_page_text(raw_text: str) -> str:
     text_processed = "\n".join(cleaned_lines)
 
     # Detect paragraphs using double newlines (or empty/blank line runs)
-    paragraphs = re.split(r'\n\s*\n', text_processed)
+    paragraphs = re.split(r'\n\s*\n+', text_processed)
     cleaned_paragraphs = []
 
     for paragraph in paragraphs:
