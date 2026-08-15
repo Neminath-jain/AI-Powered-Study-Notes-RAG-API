@@ -18,7 +18,7 @@ class LLMService:
     def _sync_generate(self, messages: List[Dict[str, str]], model_override: Optional[str] = None) -> str:
         """Executes synchronous Groq API call with fast timeout and multi-model fallback chain."""
         target_model = model_override or self.model
-        fallback_candidates = ["llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
+        fallback_candidates = ["llama-3.1-8b-instant", "openai/gpt-oss-120b", "llama-3.3-70b-versatile", "llama-3.2-11b-vision-preview"]
         models_to_try = [target_model] + [m for m in fallback_candidates if m != target_model]
 
         last_err = None
